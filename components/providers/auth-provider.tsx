@@ -74,13 +74,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [stockItems, setStockItems] = useState<StockItem[]>([])
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([])
 
-  // Load initial data
-  const loadData = async () => {
+  // Load initial data with caching and error handling
+  const loadData = async (forceRefresh: boolean = false) => {
     try {
+      setIsLoading(true)
+      
+      // Check if user session is still valid before loading data
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      if (sessionError || !session) {
+        console.warn('Invalid session, skipping data load')
+        return
+      }
+
       const [stockData, inventoryData, historyData] = await Promise.all([
-        StockService.getAll(),
-        InventoryService.getAll(),
-        StockHistoryService.getAll()
+        StockService.getAll(forceRefresh),
+        InventoryService.getAll(forceRefresh),
+        StockHistoryService.getAll(forceRefresh)
       ])
 
       setStockItems(stockData)
@@ -88,18 +97,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setStockHistory(historyData)
     } catch (error) {
       console.error('Error loading data:', error)
+      
+      // If error is auth-related, try to refresh token
+      if (error?.message?.includes('JWT') || error?.code === 'PGRST301') {
+        console.log('Auth error detected, attempting token refresh...')
+        try {
+          const { error: refreshError } = await supabase.auth.refreshSession()
+          if (!refreshError) {
+            console.log('Token refreshed, retrying data load...')
+            // Retry loading data after successful token refresh
+            setTimeout(() => loadData(true), 1000)
+          }
+        } catch (refreshError) {
+          console.error('Failed to refresh token:', refreshError)
+        }
+      }
+    } finally {
+      setIsLoading(false)
     }
   }
 
   const refreshData = async () => {
-    await loadData()
+    await loadData(true) // Force refresh
   }
 
   useEffect(() => {
+    let tokenRefreshTimer: NodeJS.Timeout | null = null
+    let sessionCheckInterval: NodeJS.Timeout | null = null
+
     // Check current session
     const checkSession = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession()
+        const { data: { session }, error } = await supabase.auth.getSession()
+        
+        if (error) {
+          console.error('Session check error:', error)
+          setIsLoading(false)
+          return
+        }
         
         if (session?.user) {
           // Get user profile
@@ -119,6 +154,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           
           // Load data if user is authenticated
           await loadData()
+          
+          // Set up proactive token refresh
+          setupTokenRefresh(session)
         }
       } catch (error) {
         console.error('Error checking session:', error)
@@ -127,10 +165,58 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
+    // Setup proactive token refresh
+    const setupTokenRefresh = (session: any) => {
+      if (tokenRefreshTimer) {
+        clearTimeout(tokenRefreshTimer)
+      }
+
+      // Calculate when to refresh (5 minutes before expiry)
+      const expiresAt = session.expires_at * 1000 // Convert to milliseconds
+      const refreshTime = expiresAt - Date.now() - (5 * 60 * 1000) // 5 minutes before expiry
+      
+      if (refreshTime > 0) {
+        tokenRefreshTimer = setTimeout(async () => {
+          console.log('Proactively refreshing token...')
+          try {
+            const { error } = await supabase.auth.refreshSession()
+            if (error) {
+              console.error('Proactive token refresh failed:', error)
+            } else {
+              console.log('Token refreshed proactively')
+            }
+          } catch (error) {
+            console.error('Proactive token refresh error:', error)
+          }
+        }, refreshTime)
+      }
+    }
+
+    // Periodic session validation
+    const validateSession = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession()
+        if (error || !session) {
+          console.log('Session invalid, clearing user state')
+          setUser(null)
+          setStockItems([])
+          setInventoryItems([])
+          setStockHistory([])
+        }
+      } catch (error) {
+        console.error('Session validation error:', error)
+      }
+    }
+
     checkSession()
+
+    // Set up periodic session validation (every 5 minutes)
+    sessionCheckInterval = setInterval(validateSession, 5 * 60 * 1000)
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state changed:', event)
+      
       if (event === 'SIGNED_IN' && session?.user) {
         const { data: profile } = await supabase
           .from('profiles')
@@ -147,15 +233,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         
         await loadData()
+        setupTokenRefresh(session)
       } else if (event === 'SIGNED_OUT') {
+        console.log('User signed out, clearing state')
         setUser(null)
         setStockItems([])
         setInventoryItems([])
         setStockHistory([])
+        
+        // Clear timers
+        if (tokenRefreshTimer) {
+          clearTimeout(tokenRefreshTimer)
+        }
+        if (sessionCheckInterval) {
+          clearInterval(sessionCheckInterval)
+        }
+      } else if (event === 'TOKEN_REFRESHED' && session) {
+        console.log('Token refreshed, setting up next refresh')
+        setupTokenRefresh(session)
       }
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      subscription.unsubscribe()
+      if (tokenRefreshTimer) {
+        clearTimeout(tokenRefreshTimer)
+      }
+      if (sessionCheckInterval) {
+        clearInterval(sessionCheckInterval)
+      }
+    }
   }, [])
 
   const login = async (email: string, password: string): Promise<boolean> => {

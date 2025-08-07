@@ -4,13 +4,13 @@ import { Inter } from "next/font/google"
 import "./globals.css"
 import { AuthProvider } from "@/components/providers/auth-provider"
 import { Toaster } from "@/components/ui/toaster"
+import { PerformanceMonitor } from "@/components/performance-monitor"
 
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
   title: "Inventory Management System",
-  description: "Organization inventory tracking and management",
-    generator: 'v0.dev'
+  description: "A comprehensive inventory management system",
 }
 
 export default function RootLayout({
@@ -24,6 +24,7 @@ export default function RootLayout({
         <AuthProvider>
           {children}
           <Toaster />
+          <PerformanceMonitor />
         </AuthProvider>
       </body>
     </html>

@@ -1,49 +1,56 @@
-import { supabase } from "@/lib/supabase"
+import { supabase, SupabaseAPI } from "@/lib/supabase"
+import { CachedAPI } from "@/lib/cache"
 import type { InventoryItem } from "@/components/providers/auth-provider"
 
 export class InventoryService {
-  static async getAll(): Promise<InventoryItem[]> {
-    try {
-      const { data, error } = await supabase
-        .from('inventory_items')
-        .select('*')
-        .order('created_at', { ascending: false })
+  static async getAll(forceRefresh: boolean = false): Promise<InventoryItem[]> {
+    return CachedAPI.fetchWithCache(
+      'inventory_items',
+      async () => {
+        try {
+          const { data, error } = await supabase
+            .from('inventory_items')
+            .select('*')
+            .order('created_at', { ascending: false })
 
-      if (error) throw error
+          if (error) throw error
 
-      return data?.map(item => ({
-        id: item.id,
-        location: item.location,
-        requestDate: item.request_date,
-        dispatchedDate: item.dispatched_date,
-        requiredItems: item.required_items || {},
-        dispatchedItems: item.dispatched_items || {},
-        comment: item.comment,
-        createdBy: item.created_by
-      })) || []
-    } catch (error) {
-      console.error('Error fetching inventory items:', error)
-      throw error
-    }
+          return data?.map(item => ({
+            id: item.id,
+            location: item.location,
+            requestDate: item.request_date,
+            dispatchedDate: item.dispatched_date,
+            requiredItems: item.required_items || {},
+            dispatchedItems: item.dispatched_items || {},
+            comment: item.comment,
+            createdBy: item.created_by
+          })) || []
+        } catch (error) {
+          console.error('Error fetching inventory items:', error)
+          throw error
+        }
+      },
+      3 * 60 * 1000, // 3 minutes cache (shorter than stock items as they change more frequently)
+      forceRefresh
+    )
   }
 
   static async create(item: Omit<InventoryItem, "id" | "createdBy">, userId: string): Promise<InventoryItem> {
     try {
-      const { data, error } = await supabase
-        .from('inventory_items')
-        .insert({
-          location: item.location,
-          request_date: item.requestDate || null,
-          dispatched_date: item.dispatchedDate || null,
-          required_items: item.requiredItems,
-          dispatched_items: item.dispatchedItems,
-          comment: item.comment,
-          created_by: userId
-        })
-        .select()
-        .single()
+      const { data, error } = await SupabaseAPI.insert<any>('inventory_items', {
+        location: item.location,
+        request_date: item.requestDate || null,
+        dispatched_date: item.dispatchedDate || null,
+        required_items: item.requiredItems,
+        dispatched_items: item.dispatchedItems,
+        comment: item.comment,
+        created_by: userId
+      })
 
       if (error) throw error
+
+      // Invalidate cache after successful creation
+      CachedAPI.invalidateCache('inventory_items')
 
       return {
         id: data.id,
@@ -72,12 +79,12 @@ export class InventoryService {
       if (updates.dispatchedItems !== undefined) updateData.dispatched_items = updates.dispatchedItems
       if (updates.comment !== undefined) updateData.comment = updates.comment
 
-      const { error } = await supabase
-        .from('inventory_items')
-        .update(updateData)
-        .eq('id', id)
+      const { error } = await SupabaseAPI.update('inventory_items', updateData, { id })
 
       if (error) throw error
+
+      // Invalidate cache after successful update
+      CachedAPI.invalidateCache('inventory_items')
     } catch (error) {
       console.error('Error updating inventory item:', error)
       throw error
@@ -86,12 +93,12 @@ export class InventoryService {
 
   static async delete(id: string): Promise<void> {
     try {
-      const { error } = await supabase
-        .from('inventory_items')
-        .delete()
-        .eq('id', id)
+      const { error } = await SupabaseAPI.delete('inventory_items', { id })
 
       if (error) throw error
+
+      // Invalidate cache after successful deletion
+      CachedAPI.invalidateCache('inventory_items')
     } catch (error) {
       console.error('Error deleting inventory item:', error)
       throw error
