@@ -49,22 +49,33 @@ export default function HomePage() {
         <div className="hidden lg:flex lg:w-1/2 flex-col justify-center px-12">
           <div className="max-w-md">
             <div className="flex items-center mb-8">
-              <div className="p-3 bg-white bg-opacity-90 rounded-2xl mr-4 shadow-lg">
-                <Building2 className="h-10 w-10 text-green-700" />
+              <div className="mr-4">
+                {/* <Building2 className="h-10 w-10 text-green-700" /> */}
+                <img
+                  src="/logo.png"
+                  alt=""
+                  style={{
+                    width: "100px",
+                    height: "auto",
+                  }}
+                />
               </div>
               <div>
-                <h1 className="text-3xl font-bold text-gray-800">PSO Inventory</h1>
+                <h1 className="text-3xl font-bold text-gray-800">
+                  PSO Inventory
+                </h1>
                 <p className="text-gray-600">Pakistan State Oil</p>
               </div>
             </div>
 
             <h2 className="text-4xl font-bold text-gray-800 mb-6 leading-tight">
-              Professional Inventory Management System
+              Computerized Stationary Management System
             </h2>
 
             <p className="text-xl text-gray-700 mb-8 leading-relaxed">
-              Streamline your organization's inventory operations with advanced analytics, real-time tracking, and
-              secure role-based access control.
+              Streamline your organization's inventory operations with advanced
+              analytics, real-time tracking, and secure role-based access
+              control.
             </p>
 
             <div className="space-y-4">
@@ -100,18 +111,30 @@ export default function HomePage() {
                     <Building2 className="h-8 w-8 text-green-700" />
                   </div>
                 </div>
-                <CardTitle className="text-2xl font-bold text-gray-800">Welcome Back</CardTitle>
+                <CardTitle className="text-2xl font-bold text-gray-800">
+                  Welcome Back
+                </CardTitle>
                 <CardDescription className="text-gray-600">
                   Sign in to access your inventory management system
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                <Tabs
+                  value={activeTab}
+                  onValueChange={setActiveTab}
+                  className="w-full"
+                >
                   <TabsList className="grid w-full grid-cols-2 mb-6 bg-gray-100">
-                    <TabsTrigger value="login" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                    <TabsTrigger
+                      value="login"
+                      className="data-[state=active]:bg-white data-[state=active]:shadow-sm"
+                    >
                       Sign In
                     </TabsTrigger>
-                    <TabsTrigger value="signup" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                    <TabsTrigger
+                      value="signup"
+                      className="data-[state=active]:bg-white data-[state=active]:shadow-sm"
+                    >
                       Sign Up
                     </TabsTrigger>
                   </TabsList>
@@ -128,5 +151,5 @@ export default function HomePage() {
         </div>
       </div>
     </div>
-  )
+  );
 }

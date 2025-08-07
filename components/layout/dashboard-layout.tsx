@@ -37,11 +37,15 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         <div className="px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-4">
-              <div className="p-2 bg-green-600 rounded-xl">
-                <Building2 className="h-6 w-6 text-white" />
+              <div className="">
+                {/* <Building2 className="h-6 w-6 text-white" /> */}
+                <img src="/logo.png" alt="" style={{
+                  width: "50px",
+                  height: "auto"
+                }} />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-gray-900">PSO Inventory</h1>
+                <h1 className="text-xl font-bold text-gray-900">Computerized Stationary System</h1>
                 <p className="text-xs text-gray-500 hidden sm:block">Pakistan State Oil</p>
               </div>
             </div>
