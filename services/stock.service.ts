@@ -81,12 +81,20 @@ export class StockService {
 
   static async delete(id: string): Promise<void> {
     try {
-      const { error } = await supabase
+      console.log('Attempting to delete stock item with ID:', id)
+      const { data, error } = await supabase
         .from('stock_items')
         .delete()
         .eq('id', id)
 
-      if (error) throw error
+      console.log('Delete result:', { data, error })
+      
+      if (error) {
+        console.error('Supabase delete error:', error)
+        throw error
+      }
+      
+      console.log('Stock item deleted successfully')
     } catch (error) {
       console.error('Error deleting stock item:', error)
       throw error
