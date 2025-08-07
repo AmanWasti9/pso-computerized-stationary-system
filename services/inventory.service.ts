@@ -1,6 +1,7 @@
-import { supabase, SupabaseAPI } from "@/lib/supabase"
+import { supabase } from "@/lib/supabase"
+import { APIClient } from "@/lib/api-client"
 import { CachedAPI } from "@/lib/cache"
-import type { InventoryItem } from "@/components/providers/auth-provider"
+import type { InventoryItem } from "@/components/providers/nextauth-provider"
 
 export class InventoryService {
   static async getAll(forceRefresh: boolean = false): Promise<InventoryItem[]> {
@@ -37,7 +38,7 @@ export class InventoryService {
 
   static async create(item: Omit<InventoryItem, "id" | "createdBy">, userId: string): Promise<InventoryItem> {
     try {
-      const { data, error } = await SupabaseAPI.insert<any>('inventory_items', {
+      const { data, error } = await APIClient.insert<any>('inventory_items', {
         location: item.location,
         request_date: item.requestDate || null,
         dispatched_date: item.dispatchedDate || null,
@@ -79,7 +80,7 @@ export class InventoryService {
       if (updates.dispatchedItems !== undefined) updateData.dispatched_items = updates.dispatchedItems
       if (updates.comment !== undefined) updateData.comment = updates.comment
 
-      const { error } = await SupabaseAPI.update('inventory_items', updateData, { id })
+      const { error } = await APIClient.update('inventory_items', updateData, { id })
 
       if (error) throw error
 
@@ -93,7 +94,7 @@ export class InventoryService {
 
   static async delete(id: string): Promise<void> {
     try {
-      const { error } = await SupabaseAPI.delete('inventory_items', { id })
+      const { error } = await APIClient.delete('inventory_items', { id })
 
       if (error) throw error
 

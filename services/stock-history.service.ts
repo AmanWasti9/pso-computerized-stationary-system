@@ -1,6 +1,7 @@
-import { supabase, SupabaseAPI } from "@/lib/supabase"
+import { supabase } from "@/lib/supabase"
+import { APIClient } from "@/lib/api-client"
 import { CachedAPI } from "@/lib/cache"
-import type { StockHistoryEntry } from "@/components/providers/auth-provider"
+import type { StockHistoryEntry } from "@/components/providers/nextauth-provider"
 
 export class StockHistoryService {
   static async getAll(forceRefresh: boolean = false): Promise<StockHistoryEntry[]> {
@@ -36,7 +37,7 @@ export class StockHistoryService {
 
   static async create(entry: Omit<StockHistoryEntry, "timestamp">): Promise<StockHistoryEntry> {
     try {
-      const { data, error } = await SupabaseAPI.insert<any>('stock_history', {
+      const { data, error } = await APIClient.insert<any>('stock_history', {
         item_name: entry.itemName,
         quantity: entry.quantity,
         type: entry.type,
@@ -103,9 +104,10 @@ export class StockHistoryService {
 
   static async deleteAll(): Promise<void> {
     try {
-      const { error } = await SupabaseAPI.delete('stock_history', (query) => 
-        query.neq('id', '00000000-0000-0000-0000-000000000000') // Delete all records
-      )
+      const { error } = await supabase
+        .from('stock_history')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000') // Delete all records
 
       if (error) throw error
 
@@ -119,9 +121,11 @@ export class StockHistoryService {
 
   static async deleteByDateAndUser(date: string, addedBy: string): Promise<void> {
     try {
-      const { error } = await SupabaseAPI.delete('stock_history', (query) => 
-        query.eq('date', date).eq('added_by', addedBy)
-      )
+      const { error } = await supabase
+        .from('stock_history')
+        .delete()
+        .eq('date', date)
+        .eq('added_by', addedBy)
 
       if (error) throw error
 
@@ -135,9 +139,10 @@ export class StockHistoryService {
 
   static async deleteByType(type: "new_item" | "stock_addition" | "stock_dispatch"): Promise<void> {
     try {
-      const { error } = await SupabaseAPI.delete('stock_history', (query) => 
-        query.eq('type', type)
-      )
+      const { error } = await supabase
+        .from('stock_history')
+        .delete()
+        .eq('type', type)
 
       if (error) throw error
 
@@ -151,9 +156,10 @@ export class StockHistoryService {
 
   static async deleteByDescription(description: string): Promise<void> {
     try {
-      const { error } = await SupabaseAPI.delete('stock_history', (query) => 
-        query.eq('description', description)
-      )
+      const { error } = await supabase
+        .from('stock_history')
+        .delete()
+        .eq('description', description)
 
       if (error) throw error
 

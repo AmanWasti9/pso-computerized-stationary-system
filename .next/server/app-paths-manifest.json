@@ -1,3 +1,6 @@
 {
-  "/page": "app/page.js"
+  "/inventory/page": "app/inventory/page.js",
+  "/inventory/add/page": "app/inventory/add/page.js",
+  "/page": "app/page.js",
+  "/email-management/page": "app/email-management/page.js"
 }

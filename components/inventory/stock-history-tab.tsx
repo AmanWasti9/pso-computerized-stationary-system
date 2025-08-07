@@ -8,11 +8,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar, TrendingUp, Trash2, Filter } from 'lucide-react'
 import { useAuth } from "@/components/providers/auth-provider"
 import { useState } from "react"
-import { toast } from "sonner"
+import { useToast } from "@/hooks/use-toast"
 
 export function StockHistoryTab() {
   const { stockHistory, stockItems, deleteStockHistoryEntry, deleteStockHistoryByType, deleteStockHistoryByDescription } = useAuth()
   const [selectedFilter, setSelectedFilter] = useState<string>("")
+  const { toast } = useToast()
 
   // Filter to only show stock additions (exclude dispatch entries)
   const stockAdditionsOnly = stockHistory.filter(entry => 
@@ -56,15 +57,26 @@ export function StockHistoryTab() {
   const handleDeleteEntry = async (date: string, addedBy: string) => {
     try {
       await deleteStockHistoryEntry(date, addedBy)
-      toast.success("Stock history entry deleted successfully")
+      toast({
+        title: "Success",
+        description: "Stock history entry deleted successfully",
+      })
     } catch (error) {
-      toast.error("Failed to delete stock history entry")
+      toast({
+        title: "Error",
+        description: "Failed to delete stock history entry",
+        variant: "destructive",
+      })
     }
   }
 
   const handleBulkDelete = async () => {
     if (!selectedFilter) {
-      toast.error("Please select a filter option")
+      toast({
+        title: "Error",
+        description: "Please select a filter option",
+        variant: "destructive",
+      })
       return
     }
 
@@ -72,23 +84,39 @@ export function StockHistoryTab() {
       switch (selectedFilter) {
         case "new_item":
           await deleteStockHistoryByType("new_item")
-          toast.success("All New Item History deleted successfully")
+          toast({
+            title: "Success",
+            description: "All New Item History deleted successfully",
+          })
           break
         case "stock_addition":
           await deleteStockHistoryByType("stock_addition")
-          toast.success("All Stock Added History deleted successfully")
+          toast({
+            title: "Success",
+            description: "All Stock Added History deleted successfully",
+          })
           break
         case "stock_dispatch":
           await deleteStockHistoryByType("stock_dispatch")
-          toast.success("All Dispatched Item History deleted successfully")
+          toast({
+            title: "Success",
+            description: "All Dispatched Item History deleted successfully",
+          })
           break
         default:
           await deleteStockHistoryByDescription(selectedFilter)
-          toast.success(`All entries with description "${selectedFilter}" deleted successfully`)
+          toast({
+            title: "Success",
+            description: `All entries with description "${selectedFilter}" deleted successfully`,
+          })
       }
       setSelectedFilter("")
     } catch (error) {
-      toast.error("Failed to delete stock history entries")
+      toast({
+        title: "Error",
+        description: "Failed to delete stock history entries",
+        variant: "destructive",
+      })
     }
   }
 

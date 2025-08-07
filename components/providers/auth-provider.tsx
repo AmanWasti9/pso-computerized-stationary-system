@@ -124,6 +124,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let tokenRefreshTimer: NodeJS.Timeout | null = null
     let sessionCheckInterval: NodeJS.Timeout | null = null
+    let visibilityCheckInterval: NodeJS.Timeout | null = null
+    let lastActivity = Date.now()
 
     // Check current session
     const checkSession = async () => {
@@ -165,53 +167,175 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    // Setup proactive token refresh
+    // Enhanced token refresh with better timing
     const setupTokenRefresh = (session: any) => {
       if (tokenRefreshTimer) {
         clearTimeout(tokenRefreshTimer)
       }
 
-      // Calculate when to refresh (5 minutes before expiry)
+      if (!session?.expires_at) return
+
+      // Calculate when to refresh (5 minutes before expiry for more safety)
       const expiresAt = session.expires_at * 1000 // Convert to milliseconds
       const refreshTime = expiresAt - Date.now() - (5 * 60 * 1000) // 5 minutes before expiry
       
+      console.log(`Token expires at: ${new Date(expiresAt).toLocaleString()}`)
+      console.log(`Will refresh in: ${Math.max(0, refreshTime / 1000)} seconds`)
+      
       if (refreshTime > 0) {
         tokenRefreshTimer = setTimeout(async () => {
-          console.log('Proactively refreshing token...')
-          try {
-            const { error } = await supabase.auth.refreshSession()
-            if (error) {
-              console.error('Proactive token refresh failed:', error)
-            } else {
-              console.log('Token refreshed proactively')
-            }
-          } catch (error) {
-            console.error('Proactive token refresh error:', error)
-          }
+          console.log('Proactively refreshing token (scheduled)...')
+          await refreshTokenSafely()
         }, refreshTime)
+      } else {
+        // Token is already expired or about to expire, refresh immediately
+        console.log('Token expired or about to expire, refreshing immediately...')
+        refreshTokenSafely()
       }
     }
 
-    // Periodic session validation
+    // Safe token refresh with retry logic
+    const refreshTokenSafely = async (retryCount = 0) => {
+      try {
+        console.log(`Attempting token refresh (attempt ${retryCount + 1}/4)...`)
+        const { data, error } = await supabase.auth.refreshSession()
+        
+        if (error) {
+          console.error('Token refresh failed:', error)
+          
+          // Retry up to 3 times with exponential backoff
+          if (retryCount < 3) {
+            const delay = Math.pow(2, retryCount) * 1000 // 1s, 2s, 4s
+            console.log(`Retrying token refresh in ${delay}ms...`)
+            setTimeout(() => refreshTokenSafely(retryCount + 1), delay)
+          } else {
+            console.error('Token refresh failed after 4 attempts, signing out...')
+            await supabase.auth.signOut()
+          }
+        } else if (data.session) {
+          const expiresAt = data.session.expires_at * 1000
+          const timeUntilExpiry = expiresAt - Date.now()
+          console.log(`Token refreshed successfully! New expiry: ${new Date(expiresAt).toLocaleString()}`)
+          console.log(`Time until new expiry: ${Math.round(timeUntilExpiry / 1000)} seconds`)
+          setupTokenRefresh(data.session)
+        }
+      } catch (error) {
+        console.error('Token refresh error:', error)
+        if (retryCount < 3) {
+          const delay = Math.pow(2, retryCount) * 1000
+          console.log(`Retrying after error in ${delay}ms...`)
+          setTimeout(() => refreshTokenSafely(retryCount + 1), delay)
+        } else {
+          console.error('Token refresh failed after 4 attempts due to errors')
+        }
+      }
+    }
+
+    // Enhanced session validation with token refresh
     const validateSession = async () => {
       try {
         const { data: { session }, error } = await supabase.auth.getSession()
-        if (error || !session) {
-          console.log('Session invalid, clearing user state')
+        
+        if (error) {
+          console.error('Session validation error:', error)
+          return
+        }
+        
+        if (!session) {
+          console.log('No session found, clearing user state')
           setUser(null)
           setStockItems([])
           setInventoryItems([])
           setStockHistory([])
+          return
+        }
+
+        // Check if token is close to expiry (within 5 minutes)
+        const expiresAt = session.expires_at * 1000
+        const timeUntilExpiry = expiresAt - Date.now()
+        
+        if (timeUntilExpiry < 5 * 60 * 1000) { // Less than 5 minutes
+          console.log('Token expiring soon, refreshing...')
+          await refreshTokenSafely()
         }
       } catch (error) {
         console.error('Session validation error:', error)
       }
     }
 
+    // Handle page visibility changes
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'visible') {
+        console.log('Page became visible, checking session...')
+        const timeSinceLastActivity = Date.now() - lastActivity
+        
+        // Always check session when page becomes visible
+        try {
+          const { data: { session }, error } = await supabase.auth.getSession()
+          
+          if (error) {
+            console.error('Session check error on visibility change:', error)
+            return
+          }
+          
+          if (session) {
+            // Check if token is close to expiry (within 10 minutes)
+            const expiresAt = session.expires_at * 1000
+            const timeUntilExpiry = expiresAt - Date.now()
+            
+            console.log(`Token check on visibility: expires in ${Math.round(timeUntilExpiry / 1000)} seconds`)
+            
+            // If token expires within 10 minutes or page was hidden for more than 2 minutes, refresh immediately
+            if (timeUntilExpiry < 10 * 60 * 1000 || timeSinceLastActivity > 2 * 60 * 1000) {
+              console.log('Refreshing token due to visibility change...')
+              await refreshTokenSafely()
+            }
+          } else {
+            console.log('No session found on visibility change')
+          }
+        } catch (error) {
+          console.error('Error checking session on visibility change:', error)
+        }
+        
+        lastActivity = Date.now()
+      } else {
+        console.log('Page became hidden')
+      }
+    }
+
+    // Track user activity
+    const updateActivity = () => {
+      lastActivity = Date.now()
+    }
+
+    // Handle window focus (when user returns to tab)
+    const handleWindowFocus = async () => {
+      console.log('Window focused, checking session immediately...')
+      await handleVisibilityChange() // Reuse the visibility change logic
+    }
+
+    // Set up event listeners
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener('focus', handleWindowFocus)
+    document.addEventListener('click', updateActivity)
+    document.addEventListener('keydown', updateActivity)
+    document.addEventListener('scroll', updateActivity)
+
     checkSession()
 
-    // Set up periodic session validation (every 5 minutes)
-    sessionCheckInterval = setInterval(validateSession, 5 * 60 * 1000)
+    // Set up periodic session validation (every 2 minutes for more frequent checks)
+    sessionCheckInterval = setInterval(validateSession, 2 * 60 * 1000)
+
+    // Set up visibility-based checks (every 30 seconds when page is visible)
+    visibilityCheckInterval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        const timeSinceLastActivity = Date.now() - lastActivity
+        // If no activity for 10 minutes, validate session
+        if (timeSinceLastActivity > 10 * 60 * 1000) {
+          validateSession()
+        }
+      }
+    }, 30 * 1000)
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
@@ -234,6 +358,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         await loadData()
         setupTokenRefresh(session)
+        lastActivity = Date.now()
       } else if (event === 'SIGNED_OUT') {
         console.log('User signed out, clearing state')
         setUser(null)
@@ -248,20 +373,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (sessionCheckInterval) {
           clearInterval(sessionCheckInterval)
         }
+        if (visibilityCheckInterval) {
+          clearInterval(visibilityCheckInterval)
+        }
       } else if (event === 'TOKEN_REFRESHED' && session) {
         console.log('Token refreshed, setting up next refresh')
         setupTokenRefresh(session)
+        lastActivity = Date.now()
       }
     })
 
     return () => {
       subscription.unsubscribe()
+      
+      // Clear all timers
       if (tokenRefreshTimer) {
         clearTimeout(tokenRefreshTimer)
       }
       if (sessionCheckInterval) {
         clearInterval(sessionCheckInterval)
       }
+      if (visibilityCheckInterval) {
+        clearInterval(visibilityCheckInterval)
+      }
+      
+      // Remove event listeners
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('focus', handleWindowFocus)
+      document.removeEventListener('click', updateActivity)
+      document.removeEventListener('keydown', updateActivity)
+      document.removeEventListener('scroll', updateActivity)
     }
   }, [])
 

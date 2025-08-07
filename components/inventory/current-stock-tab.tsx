@@ -8,7 +8,8 @@ import { Label } from "@/components/ui/label"
 import { Plus, Package, PlusCircle, Save, X, Delete, Trash2 } from 'lucide-react'
 import { useToast } from "@/hooks/use-toast"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { useAuth, type StockItem } from "@/components/providers/auth-provider"
+import { useAuth } from "@/components/providers/auth-provider"
+import { type Stock as StockItem } from "@/types"
 
 export function CurrentStockTab() {
   const { user, addBulkStockHistory, stockItems, updateStockItems, addNewStockItem, deleteStockItem } = useAuth()
