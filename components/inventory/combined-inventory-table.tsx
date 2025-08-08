@@ -391,22 +391,8 @@ export function CombinedInventoryTable() {
           throw new Error("Original item not found");
         }
 
-        // Validate stock availability for dispatched items
-        const newDispatchedItems = editingData.dispatchedItems || originalItem.dispatchedItems;
-        const validation = validateStockAvailability(newDispatchedItems, originalItem.dispatchedItems);
-        
-        if (!validation.isValid) {
-          const insufficientItemsText = validation.insufficientItems
-            .map(item => `${item.name}: Available ${item.available}, Requested ${item.requested}`)
-            .join('\n');
-          
-          toast({
-            title: "Insufficient Stock",
-            description: `You don't have enough items in stock:\n${insufficientItemsText}`,
-            variant: "destructive",
-          });
-          return;
-        }
+        // Get new dispatched items for stock update
+        const newDispatchedItems = editingData.dispatchedItems || {};
 
         // Update the inventory item
         await updateInventoryItem(editingId, editingData);
@@ -487,22 +473,8 @@ export function CombinedInventoryTable() {
     }
 
     try {
-      // Validate stock availability for dispatched items
+      // Get dispatched items for stock update
       const dispatchedItems = newRowData.dispatchedItems || {};
-      const validation = validateStockAvailability(dispatchedItems);
-      
-      if (!validation.isValid) {
-        const insufficientItemsText = validation.insufficientItems
-          .map(item => `${item.name}: Available ${item.available}, Requested ${item.requested}`)
-          .join('\n');
-        
-        toast({
-          title: "Insufficient Stock",
-          description: `You don't have enough items in stock:\n${insufficientItemsText}`,
-          variant: "destructive",
-        });
-        return;
-      }
 
       // Add the inventory item
       await addInventoryItem(
@@ -667,7 +639,7 @@ export function CombinedInventoryTable() {
             onClick={handleExportToExcel}
           >
             <Download className="h-4 w-4 mr-2" />
-            Export 
+            Export
           </Button>
 
           <Button
@@ -849,6 +821,11 @@ export function CombinedInventoryTable() {
                       dispatchedMonth === selectedMonth
                     );
                   })
+                  .sort((a, b) => {
+                    const dateA = new Date(a.requestDate || 0);
+                    const dateB = new Date(b.requestDate || 0);
+                    return dateB - dateA; // Descending order
+                  })
                   .map((item) => (
                     <TableRow
                       key={item.id}
@@ -887,7 +864,20 @@ export function CombinedInventoryTable() {
                           />
                         ) : (
                           <span className="w-28 p-4 whitespace-nowrap overflow-hidden text-ellipsis">
-                            {item.requestDate || "-"}
+                            {item.requestDate
+                              ? (() => {
+                                  const date = new Date(item.requestDate);
+                                  const day = String(date.getDate()).padStart(
+                                    2,
+                                    "0"
+                                  );
+                                  const month = String(
+                                    date.getMonth() + 1
+                                  ).padStart(2, "0");
+                                  const year = date.getFullYear();
+                                  return `${day}-${month}-${year}`;
+                                })()
+                              : "-"}
                           </span>
                         )}
                       </TableCell>
@@ -920,7 +910,20 @@ export function CombinedInventoryTable() {
                           />
                         ) : (
                           <span className="w-28 p-4 whitespace-nowrap overflow-hidden text-ellipsis">
-                            {item.dispatchedDate || "-"}
+                            {item.dispatchedDate
+                              ? (() => {
+                                  const date = new Date(item.dispatchedDate);
+                                  const day = String(date.getDate()).padStart(
+                                    2,
+                                    "0"
+                                  );
+                                  const month = String(
+                                    date.getMonth() + 1
+                                  ).padStart(2, "0");
+                                  const year = date.getFullYear();
+                                  return `${day}-${month}-${year}`;
+                                })()
+                              : "-"}
                           </span>
                         )}
                       </TableCell>
